@@ -692,6 +692,16 @@
 
         return popup;
       }])
+    .factory('satellizer.redirect', [
+      '$q',
+      '$interval',
+      '$window',
+      '$location',
+      'satellizer.config',
+      'satellizer.utils',
+      function($q, $interval, $window, $location, config, utils) {
+    
+      }])
     .service('satellizer.utils', function() {
       this.camelCase = function(name) {
         return name.replace(/([\:\-\_]+(.))/g, function(_, separator, letter, offset) {
