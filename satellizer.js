@@ -175,6 +175,10 @@
         platform: {
           get: function() { return config.platform; },
           set: function(value) { config.platform = value; }
+        },
+        useRedirectFlow : {
+          get: function() { return config.useRedirectFlow; },
+          set: function(value) { config.useRedirectFlow = value; }
         }
       });
 
@@ -281,8 +285,10 @@
         };
 
         shared.setToken = function(response, redirect) {
-          var accessToken = response && response.access_token;
-          var token;
+          var accessToken = response && response.access_token,
+              expiresIn = response && response.expires_in,
+              token;
+
 
           if (accessToken) {
             if (angular.isObject(accessToken) && angular.isObject(accessToken.data)) {
@@ -305,6 +311,8 @@
           }
 
           storage.set(tokenName, token);
+          storage.set(tokenName+'_expiresIn', new Date().getTime() + (parseInt(expiresIn, 10) * 1000));
+
 
           if (config.loginRedirect && !redirect) {
             $location.path(config.loginRedirect);
@@ -319,10 +327,15 @@
         };
 
         shared.isAuthenticated = function() {
-          var tokenName = config.tokenPrefix ? config.tokenPrefix + '_' + config.tokenName : config.tokenName;
-          var token = storage.get(tokenName);
+          var tokenName = config.tokenPrefix ? config.tokenPrefix + '_' + config.tokenName : config.tokenName,
+              token = storage.get(tokenName),
+              expiresIn = storage.get(tokenName+'_expiresIn');
 
           if (token) {
+            if(expiresIn && parseInt(expiresIn, 10) < new Date().getTime()) {
+                return false;
+            }
+
             if (token.split('.').length === 3) {
               var base64Url = token.split('.')[1];
               var base64 = base64Url.replace('-', '+').replace('_', '/');
@@ -339,6 +352,7 @@
         shared.logout = function(redirect) {
           var tokenName = config.tokenPrefix ? config.tokenPrefix + '_' + config.tokenName : config.tokenName;
           storage.remove(tokenName);
+          storage.remove(tokenName+'_expiresIn');
 
           if (config.logoutRedirect && !redirect) {
             $location.url(config.logoutRedirect);
@@ -428,7 +442,8 @@
       'satellizer.utils',
       'satellizer.config',
       'satellizer.storage',
-      function($q, $http, $window, popup, utils, config, storage) {
+      'satellizer.redirect',
+      function($q, $http, $window, popup, utils, config, storage, redirect) {
         return function() {
 
           var defaults = {
@@ -463,17 +478,20 @@
 
             var url = defaults.authorizationEndpoint + '?' + oauth2.buildQueryString();
 
-            return popup.open(url, defaults.popupOptions, defaults.redirectUri)
-              .then(function(oauthData) {
-                if (defaults.responseType === 'token') {
-                  return oauthData;
-                }
-                if (oauthData.state && oauthData.state !== storage.get(stateName)) {
-                  return $q.reject('OAuth 2.0 state parameter mismatch.');
-                }
-                return oauth2.exchangeForToken(oauthData, userData);
-              });
-
+            if(config.useRedirectFlow) {
+                redirect.performRedirect(url);
+            } else {
+                return popup.open(url, defaults.popupOptions, defaults.redirectUri)
+                  .then(function(oauthData) {
+                    if (defaults.responseType === 'token') {
+                      return oauthData;
+                    }
+                    if (oauthData.state && oauthData.state !== storage.get(stateName)) {
+                      return $q.reject('OAuth 2.0 state parameter mismatch.');
+                    }
+                    return oauth2.exchangeForToken(oauthData, userData);
+                  });
+            }
           };
 
           oauth2.exchangeForToken = function(oauthData, userData) {
@@ -693,14 +711,24 @@
         return popup;
       }])
     .factory('satellizer.redirect', [
-      '$q',
-      '$interval',
-      '$window',
       '$location',
       'satellizer.config',
       'satellizer.utils',
-      function($q, $interval, $window, $location, config, utils) {
-    
+      'satellizer.shared',
+      function($location, config, utils, shared) {
+          var redirect = {},
+              locationHash;
+
+          if(config.useRedirectFlow) {
+            locationHash = utils.parseQueryString($location.path().substring(1));
+            locationHash.access_token && shared.setToken(locationHash);
+          }
+
+          redirect.performRedirect = function (url) {
+            window.location.replace(url);
+          };
+
+          return redirect;
       }])
     .service('satellizer.utils', function() {
       this.camelCase = function(name) {
