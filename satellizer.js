@@ -716,19 +716,19 @@
       'satellizer.utils',
       'satellizer.shared',
       function($location, config, utils, shared) {
-          var redirect = {},
-              locationHash;
+        var redirect = {},
+            locationHash;
 
-          if(config.useRedirectFlow) {
-            locationHash = utils.parseQueryString($location.path().substring(1));
-            locationHash.access_token && shared.setToken(locationHash);
-          }
+        if(config.useRedirectFlow) {
+          locationHash = utils.parseQueryString($location.path().substring(1));
+          locationHash.access_token && shared.setToken(locationHash);
+        }
 
-          redirect.performRedirect = function (url) {
-            window.location.replace(url);
-          };
+        redirect.performRedirect = function (url) {
+          window.location.replace(url);
+        };
 
-          return redirect;
+        return redirect;
       }])
     .service('satellizer.utils', function() {
       this.camelCase = function(name) {
