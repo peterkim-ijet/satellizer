@@ -477,9 +477,14 @@
             }
 
             var url = defaults.authorizationEndpoint + '?' + oauth2.buildQueryString();
+            
+            // Append username to url
+            if(userData && userData.username) {
+              url += '&username=' + userData.username;
+            }
 
             if(config.useRedirectFlow) {
-                redirect.performRedirect(url);
+              redirect.performRedirect(url);
             } else {
                 return popup.open(url, defaults.popupOptions, defaults.redirectUri)
                   .then(function(oauthData) {
