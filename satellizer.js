@@ -479,8 +479,14 @@
             var url = defaults.authorizationEndpoint + '?' + oauth2.buildQueryString();
             
             // Append username to url
-            if(userData && userData.username) {
-              url += '&username=' + userData.username;
+            // if(userData && userData.username) {
+            //   url += '&username=' + userData.username;
+            // }
+              
+            if (userData) {
+                for(var data in userData) {
+                url += '&' + data + '=' + userData[data];
+              }
             }
 
             if(config.useRedirectFlow) {
