@@ -287,6 +287,7 @@
         shared.setToken = function(response, redirect) {
           var accessToken = response && response.access_token,
               expiresIn = response && response.expires_in,
+              logout = response && response.logout_success,
               token;
 
 
@@ -310,9 +311,10 @@
             throw new Error('Expecting a token named "' + tokenName + '" but instead got: ' + JSON.stringify(response.data));
           }
 
-          storage.set(tokenName, token);
-          storage.set(tokenName+'_expiresIn', new Date().getTime() + (parseInt(expiresIn, 10) * 1000));
-
+          if (!logout) {
+            storage.set(tokenName, token);
+            storage.set(tokenName+'_expiresIn', new Date().getTime() + (parseInt(expiresIn, 10) * 1000));
+          }
 
           if (config.loginRedirect && !redirect) {
             $location.path(config.loginRedirect);
@@ -736,7 +738,7 @@
         }
 
         redirect.performRedirect = function (url) {
-          window.location.replace(url);
+          window.location.assign(url);
         };
 
         return redirect;
