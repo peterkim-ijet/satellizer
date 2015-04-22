@@ -335,7 +335,7 @@
 
           if (token) {
             if(expiresIn && parseInt(expiresIn, 10) < new Date().getTime()) {
-                return false;
+              return false;
             }
 
             if (token.split('.').length === 3) {
@@ -381,15 +381,17 @@
         oauth.authenticate = function(name, redirect, userData) {
           var provider = config.providers[name].type === '1.0' ? new Oauth1() : new Oauth2();
           var deferred = $q.defer();
+          var authRet = provider.open(config.providers[name], userData || {}, deferred);
 
-          provider.open(config.providers[name], userData || {})
-            .then(function(response) {
-              shared.setToken(response, redirect);
-              deferred.resolve(response);
-            })
-            .catch(function(error) {
-              deferred.reject(error);
-            });
+          if (authRet && authRet.then && angular.isFunction(authRet.then)) {
+            authRet
+              .then(function(response) {
+                shared.setToken(response, redirect);
+              })
+              .catch(function(error) {
+                deferred.reject(error);
+              });
+          }
 
           return deferred.promise;
         };
@@ -401,7 +403,6 @@
             return $http.post(config.unlinkUrl, provider);
           }
         };
-
         return oauth;
       }])
     .factory('satellizer.local', [
@@ -467,7 +468,7 @@
 
           var oauth2 = {};
 
-          oauth2.open = function(options, userData) {
+          oauth2.open = function(options, userData, deferred) {
             angular.extend(defaults, options);
 
             var stateName = defaults.name + '_state';
@@ -484,26 +485,26 @@
             // if(userData && userData.username) {
             //   url += '&username=' + userData.username;
             // }
-              
+            
             if (userData) {
-                for(var data in userData) {
+              for(var data in userData) {
                 url += '&' + data + '=' + userData[data];
               }
             }
 
             if(config.useRedirectFlow) {
-              redirect.performRedirect(url);
+              redirect.performRedirect(url, deferred);
             } else {
-                return popup.open(url, defaults.popupOptions, defaults.redirectUri)
-                  .then(function(oauthData) {
-                    if (defaults.responseType === 'token') {
-                      return oauthData;
-                    }
-                    if (oauthData.state && oauthData.state !== storage.get(stateName)) {
-                      return $q.reject('OAuth 2.0 state parameter mismatch.');
-                    }
-                    return oauth2.exchangeForToken(oauthData, userData);
-                  });
+              return popup.open(url, defaults.popupOptions, defaults.redirectUri)
+                .then(function(oauthData) {
+                  if (defaults.responseType === 'token') {
+                    return oauthData;
+                  }
+                  if (oauthData.state && oauthData.state !== storage.get(stateName)) {
+                    return $q.reject('OAuth 2.0 state parameter mismatch.');
+                  }
+                  return oauth2.exchangeForToken(oauthData, userData);
+                });
             }
           };
 
@@ -724,25 +725,56 @@
         return popup;
       }])
     .factory('satellizer.redirect', [
+      '$window',
       '$location',
+      '$http',
       'satellizer.config',
       'satellizer.utils',
       'satellizer.shared',
-      function($location, config, utils, shared) {
+      function($window, $location, $http, config, utils, shared) {
         var redirect = {},
             locationHash;
-
+        
         if(config.useRedirectFlow) {
           locationHash = utils.parseQueryString($location.path().substring(1));
           locationHash.access_token && shared.setToken(locationHash);
         }
 
-        redirect.performRedirect = function (url) {
-          window.location.assign(url);
+        /**
+         * Redirect to url if valid request
+         * @param {String} url
+         * @returns {Object} retObj 
+         */
+        redirect.performRedirect = function(url,deferred) {
+          var parser = new DOMParser(),
+              doc,
+              me = this || {};
+          
+          me.deferred = deferred;
+          me.errorFactory = function(msg){ return new Error(msg); };
+          
+          $http.get(url)
+            .success(function(data,status,header,config) {
+              doc = parser.parseFromString(data, "text/html");
+              
+              // relying on page title for Error text seems rather
+              // fragile but until proper error code is implemented
+              // on wso2 side, this will have to do
+              // @todo Implment proper wso2 error code
+              if (doc && doc.title.indexOf('Error') < 0 && status !== 0) {
+                window.location.assign(url);
+              } else {
+                // trigger deferred if ther is error
+                me.deferred.resolve(me.errorFactory(data));                      
+              }
+            }).error(function(data,status,header,config){
+              me.deferred.resolve(me.errorFactory(data));                      
+            });
         };
-
+        
         return redirect;
       }])
+  
     .service('satellizer.utils', function() {
       this.camelCase = function(name) {
         return name.replace(/([\:\-\_]+(.))/g, function(_, separator, letter, offset) {
