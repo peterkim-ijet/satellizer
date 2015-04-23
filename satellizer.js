@@ -748,12 +748,25 @@
         redirect.performRedirect = function(url,deferred) {
           var parser = new DOMParser(),
               doc,
-              me = this || {};
+              me = this || {},
+              isIE=/*@cc_on!@*/false || !!document.documentMode,
+              isSafari = Object.prototype.toString.call(window.HTMLElement).indexOf('Constructor') > 0;
           
           me.deferred = deferred;
           me.errorFactory = function(msg){ return new Error(msg); };
-          
-          $http.get(url)
+
+          // IE and safari has cors bug where if response
+          // makes another request, access origin is set
+          // to null  
+          if (isIE || isSafari) {
+            window.location.assign(url);
+          }
+            
+          $http({
+              url:url,
+              method:'GET',
+              responseType:'text'
+          })
             .success(function(data,status,header,config) {
               doc = parser.parseFromString(data, "text/html");
               
