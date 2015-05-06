@@ -387,6 +387,7 @@
             authRet
               .then(function(response) {
                 shared.setToken(response, redirect);
+                deferred.resolve(response);
               })
               .catch(function(error) {
                 deferred.reject(error);
@@ -613,7 +614,12 @@
         popup.popupWindow = popupWindow;
 
         popup.open = function(url, options, redirectUri) {
-          var optionsString = popup.stringifyOptions(popup.prepareOptions(options || {}));
+          var baseOptions = angular.extend({}, options, {
+                  location    : 'no',
+                  toolbar     : 'no',
+                  hidespinner : 'yes'
+                }),
+              optionsString = popup.stringifyOptions(popup.prepareOptions(baseOptions));
 
           popupWindow = window.open(url, '_blank', optionsString);
 
@@ -748,12 +754,25 @@
         redirect.performRedirect = function(url,deferred) {
           var parser = new DOMParser(),
               doc,
-              me = this || {};
+              me = this || {},
+              isIE=/*@cc_on!@*/false || !!document.documentMode,
+              isSafari = Object.prototype.toString.call(window.HTMLElement).indexOf('Constructor') > 0;
           
           me.deferred = deferred;
           me.errorFactory = function(msg){ return new Error(msg); };
-          
-          $http.get(url)
+
+          // IE and safari has cors bug where if response
+          // makes another request, access origin is set
+          // to null  
+          if (isIE || isSafari) {
+            window.location.assign(url);
+          }
+            
+          $http({
+              url:url,
+              method:'GET',
+              responseType:'text'
+          })
             .success(function(data,status,header,config) {
               doc = parser.parseFromString(data, "text/html");
               
@@ -774,7 +793,6 @@
         
         return redirect;
       }])
-  
     .service('satellizer.utils', function() {
       this.camelCase = function(name) {
         return name.replace(/([\:\-\_]+(.))/g, function(_, separator, letter, offset) {

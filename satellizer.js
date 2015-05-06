@@ -387,6 +387,7 @@
             authRet
               .then(function(response) {
                 shared.setToken(response, redirect);
+                deferred.resolve(response);
               })
               .catch(function(error) {
                 deferred.reject(error);
@@ -613,7 +614,12 @@
         popup.popupWindow = popupWindow;
 
         popup.open = function(url, options, redirectUri) {
-          var optionsString = popup.stringifyOptions(popup.prepareOptions(options || {}));
+          var baseOptions = angular.extend({}, options, {
+                  location    : 'no',
+                  toolbar     : 'no',
+                  hidespinner : 'yes'
+                }),
+              optionsString = popup.stringifyOptions(popup.prepareOptions(baseOptions));
 
           popupWindow = window.open(url, '_blank', optionsString);
 
@@ -787,7 +793,6 @@
         
         return redirect;
       }])
-  
     .service('satellizer.utils', function() {
       this.camelCase = function(name) {
         return name.replace(/([\:\-\_]+(.))/g, function(_, separator, letter, offset) {
