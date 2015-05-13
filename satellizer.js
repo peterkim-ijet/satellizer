@@ -745,52 +745,10 @@
           locationHash = utils.parseQueryString($location.path().substring(1));
           locationHash.access_token && shared.setToken(locationHash);
         }
-
-        /**
-         * Redirect to url if valid request
-         * @param {String} url
-         * @returns {Object} retObj 
-         */
         redirect.performRedirect = function(url,deferred) {
-          var parser = new DOMParser(),
-              doc,
-              me = this || {},
-              isIE=/*@cc_on!@*/false || !!document.documentMode,
-              isSafari = Object.prototype.toString.call(window.HTMLElement).indexOf('Constructor') > 0;
-          
-          me.deferred = deferred;
-          me.errorFactory = function(msg){ return new Error(msg); };
-
-          // IE and safari has cors bug where if response
-          // makes another request, access origin is set
-          // to null  
-          if (isIE || isSafari) {
-            window.location.assign(url);
-          }
-            
-          $http({
-              url:url,
-              method:'GET',
-              responseType:'text'
-          })
-            .success(function(data,status,header,config) {
-              doc = parser.parseFromString(data, "text/html");
-              
-              // relying on page title for Error text seems rather
-              // fragile but until proper error code is implemented
-              // on wso2 side, this will have to do
-              // @todo Implment proper wso2 error code
-              if (doc && doc.title.indexOf('Error') < 0 && status !== 0) {
-                window.location.assign(url);
-              } else {
-                // trigger deferred if ther is error
-                me.deferred.resolve(me.errorFactory(data));                      
-              }
-            }).error(function(data,status,header,config){
-              me.deferred.resolve(me.errorFactory(data));                      
-            });
+          window.location.assign(url);
         };
-        
+
         return redirect;
       }])
     .service('satellizer.utils', function() {
